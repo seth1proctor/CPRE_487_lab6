@@ -38,11 +38,54 @@ entity dequantization is
 end dequantization;
 
 architecture Behavioral of dequantization is
-
--- TODO
+    -- Internal signals
+    signal scaled_value : signed(C_DATA_WIDTH-1 downto 0);
+    signal dequantized_value : signed(C_OUT_WIDTH downto 0);
+    signal output_value : signed(C_OUT_WIDTH-1 downto 0);
+    signal valid_data : std_logic := '0';
+    signal last_signal : std_logic := '0';
+    signal tid_signal : std_logic_vector(C_TID_WIDTH-1 downto 0) := (others => '0');
 
 begin
+    process(clk, rst)
+    begin
+        if rst = '1' then
+            valid_data <= '0';
+            last_signal <= '0';
+            tid_signal <= (others => '0');
+            M_AXIS_TDATA <= (others => '0');
+        elsif rising_edge(clk) then
+            if S_AXIS_TVALID = '1' and M_AXIS_TREADY = '1' then
+                -- Dequantization calculation: scale * input + zero point
+                scaled_value <= signed(S_AXIS_TDATA) * signed(q_scale);
+                dequantized_value <= scaled_value + signed(('0' & q_zero));
 
--- TODO
+                -- Apply ReLU if enabled
+                if relu = '1' then
+                    if dequantized_value < 0 then
+                        output_value <= (others => '0');
+                    else
+                        output_value <= dequantized_value(C_OUT_WIDTH-1 downto 0);
+                    end if;
+                else
+                    output_value <= dequantized_value(C_OUT_WIDTH-1 downto 0);
+                end if;
+
+                -- Capture output signals
+                valid_data <= '1';
+                last_signal <= S_AXIS_TLAST;
+                tid_signal <= S_AXIS_TID;
+            else
+                valid_data <= '0';
+            end if;
+        end if;
+    end process;
+
+    -- Output assignments
+    S_AXIS_TREADY <= M_AXIS_TREADY;
+    M_AXIS_TDATA <= std_logic_vector(output_value);
+    M_AXIS_TVALID <= valid_data;
+    M_AXIS_TLAST <= last_signal;
+    M_AXIS_TID <= tid_signal;
 
 end Behavioral;

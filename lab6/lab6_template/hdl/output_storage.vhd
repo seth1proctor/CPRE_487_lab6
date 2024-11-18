@@ -25,7 +25,7 @@ entity output_storage is
         S_AXIS_TID    : in  std_logic_vector(C_TID_WIDTH-1 downto 0);
         S_AXIS_TVALID : in  std_logic;
 
-        BRAM_addr : out std_logic_vector(32-1 downto 0);
+        BRAM_addr : out std_logic_vector(BRAM_ADDR_WIDTH-1 downto 0);
         BRAM_din : out std_logic_vector(BRAM_DATA_WIDTH-1 downto 0);
         BRAM_dout : in std_logic_vector(BRAM_DATA_WIDTH-1 downto 0);
         BRAM_en : out std_logic;
@@ -47,11 +47,66 @@ entity output_storage is
 end output_storage;
 
 architecture Behavioral of output_storage is
-
--- TODO
+    signal current_addr : unsigned(BRAM_ADDR_WIDTH-1 downto 0) := (others => '0');
+    signal write_data : std_logic_vector(BRAM_DATA_WIDTH-1 downto 0) := (others => '0');
+    signal write_enable : std_logic := '0';
+    signal pooling_max : unsigned(DATA_WIDTH-1 downto 0) := (others => '0');
+    signal data_ready : std_logic := '0';
+    signal last_received : std_logic := '0';
 
 begin
+    process(clk, rst)
+    begin
+        if rst = '1' then
+            current_addr <= (others => '0');
+            write_data <= (others => '0');
+            write_enable <= '0';
+            pooling_max <= (others => '0');
+            data_ready <= '0';
+            last_received <= '0';
+        elsif rising_edge(clk) then
+            if conv_idle = '1' then
+                current_addr <= unsigned(initial_offset);
+                write_enable <= '0';
+                data_ready <= '0';
+                last_received <= '0';
+            elsif S_AXIS_TVALID = '1' and S_AXIS_TREADY = '1' then
+                -- Handle max pooling if enabled
+                if max_pooling = '1' then
+                    if unsigned(S_AXIS_TDATA) > pooling_max then
+                        pooling_max <= unsigned(S_AXIS_TDATA);
+                    end if;
+                    if S_AXIS_TLAST = '1' then
+                        write_data <= std_logic_vector(pooling_max);
+                        write_enable <= '1';
+                        pooling_max <= (others => '0');
+                    else
+                        write_enable <= '0';
+                    end if;
+                else
+                    write_data <= S_AXIS_TDATA;
+                    write_enable <= '1';
+                end if;
 
--- TODO
+                -- Update address
+                if S_AXIS_TLAST = '1' then
+                    last_received <= '1';
+                end if;
+                current_addr <= current_addr + 1;
+            else
+                write_enable <= '0';
+            end if;
+        end if;
+    end process;
+
+    -- Assign output signals
+    S_AXIS_TREADY <= not last_received;
+    BRAM_addr <= std_logic_vector(current_addr);
+    BRAM_din <= write_data;
+    BRAM_en <= '1';
+    BRAM_we <= (others => write_enable);
+    BRAM_rst <= rst;
+    BRAM_clk <= clk;
+    conv_complete <= last_received;
 
 end Behavioral;

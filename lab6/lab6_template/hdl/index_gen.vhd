@@ -40,12 +40,59 @@ entity index_gen is
 end index_gen;
 
 architecture Behavioral of index_gen is
+    signal input_addr : unsigned(INPUT_ADDR_WIDTH-1 downto 0) := (others => '0');
+    signal filter_addr : unsigned(FILTER_ADDR_WIDTH-1 downto 0) := (others => '0');
+    signal output_row : unsigned(DIM_WIDTH-1 downto 0) := (others => '0');
+    signal output_col : unsigned(DIM_WIDTH-1 downto 0) := (others => '0');
+    signal channel_count : unsigned(DIM_WIDTH-1 downto 0) := (others => '0');
 
--- TODO
-
+    signal valid : std_logic := '0';
+    signal last : std_logic := '0';
 begin
+    process(clk, rst)
+    begin
+        if rst = '1' then
+            input_addr <= (others => '0');
+            filter_addr <= (others => '0');
+            output_row <= (others => '0');
+            output_col <= (others => '0');
+            channel_count <= (others => '0');
+            valid <= '0';
+            last <= '0';
+        elsif rising_edge(clk) then
+            if conv_idle = '1' then
+                input_addr <= (others => '0');
+                filter_addr <= (others => '0');
+                output_row <= (others => '0');
+                output_col <= (others => '0');
+                channel_count <= (others => '0');
+                valid <= '0';
+                last <= '0';
+            elsif M_AXIS_TREADY = '1' then
+                valid <= '1';
 
+                if channel_count < unsigned(filter_c) - 1 then
+                    channel_count <= channel_count + 1;
+                    input_addr <= input_addr + unsigned(input_end_diff_fw);
+                    filter_addr <= filter_addr + 1;
+                elsif output_col < unsigned(output_w) - 1 then
+                    channel_count <= (others => '0');
+                    output_col <= output_col + 1;
+                    input_addr <= input_addr + unsigned(input_end_diff_fh);
+                elsif output_row < unsigned(output_h) - 1 then
+                    channel_count <= (others => '0');
+                    output_col <= (others => '0');
+                    output_row <= output_row + 1;
+                    input_addr <= input_addr + unsigned(input_end_diff_fc);
+                else
+                    last <= '1';
+                end if;
+            end if;
+        end if;
+    end process;
 
--- TODO
-
+    M_AXIS_TDATA_input_addr <= std_logic_vector(input_addr);
+    M_AXIS_TDATA_filter_addr <= std_logic_vector(filter_addr);
+    M_AXIS_TVALID <= valid;
+    M_AXIS_TLAST <= last;
 end Behavioral;
