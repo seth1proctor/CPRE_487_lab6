@@ -39,7 +39,7 @@ end dequantization;
 
 architecture Behavioral of dequantization is
     -- Internal signals
-    signal scaled_value : signed(C_DATA_WIDTH-1 downto 0);
+    signal scaled_value : signed(C_OUT_WIDTH-1 downto 0);
     signal dequantized_value : signed(C_OUT_WIDTH downto 0);
     signal output_value : signed(C_OUT_WIDTH-1 downto 0);
     signal valid_data : std_logic := '0';
@@ -57,7 +57,7 @@ begin
         elsif rising_edge(clk) then
             if S_AXIS_TVALID = '1' and M_AXIS_TREADY = '1' then
                 -- Dequantization calculation: scale * input + zero point
-                scaled_value <= signed(S_AXIS_TDATA) * signed(q_scale);
+                scaled_value <= resize(signed(S_AXIS_TDATA) * signed(q_scale), C_OUT_WIDTH);
                 dequantized_value <= scaled_value + signed(('0' & q_zero));
 
                 -- Apply ReLU if enabled

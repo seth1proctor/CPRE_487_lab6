@@ -36,19 +36,19 @@ end conv_mac;
 
 architecture behavioral of conv_mac is
 
-  signal output_result_internal, output_hold : signed(31 downto 0);  -- Internal accumulator result
+  signal output_result_internal, output_hold : signed(C_OUTPUT_DATA_WIDTH-1 downto 0);  -- Internal accumulator result
 
   -- Debug signals, used to monitor behavior
   signal mac_debug : std_logic_vector(31 downto 0);
 
 begin
 
-  process (ACLK)
+  process (clk)
   begin 
-      if rising_edge(ACLK) then
+      if rising_edge(clk) then
           -- Reset condition
           if rst = '1' then
-              output_result_internal <= resize(signed(bias), 32);
+              output_result_internal <= resize(signed(bias), C_OUTPUT_DATA_WIDTH);
               S_AXIS_TREADY <= '0';
               M_AXIS_TLAST <= '0';
           elsif M_AXIS_TREADY = '0' then
@@ -60,11 +60,11 @@ begin
           else
               if S_AXIS_TVALID = '1' then
                   if S_AXIS_TLAST = '1' then
-                      output_result_internal <= resize(signed(bias), 32);
-                      output_hold <= resize(signed(S_AXIS_TDATA(C_DATA_WIDTH*2-1 downto C_DATA_WIDTH)) * signed(S_AXIS_TDATA(C_DATA_WIDTH-1 downto 0)), 32) + output_result_internal;
+                      output_result_internal <= resize(signed(bias), C_OUTPUT_DATA_WIDTH);
+                      output_hold <= resize(signed(S_AXIS_TDATA(C_DATA_WIDTH*2-1 downto C_DATA_WIDTH)) * signed(S_AXIS_TDATA(C_DATA_WIDTH-1 downto 0)), C_OUTPUT_DATA_WIDTH) + output_result_internal;
                   else 
                       output_hold <= (others => 'X');
-                      output_result_internal <= output_result_internal + resize(signed(S_AXIS_TDATA(C_DATA_WIDTH*2-1 downto C_DATA_WIDTH)) * signed(S_AXIS_TDATA(C_DATA_WIDTH-1 downto 0)), 32);
+                      output_result_internal <= output_result_internal + resize(signed(S_AXIS_TDATA(C_DATA_WIDTH*2-1 downto C_DATA_WIDTH)) * signed(S_AXIS_TDATA(C_DATA_WIDTH-1 downto 0)), C_OUTPUT_DATA_WIDTH);
                   end if;
                   M_AXIS_TLAST <= '1';
                   S_AXIS_TREADY <= '1';   
@@ -74,7 +74,7 @@ begin
               end if;
           end if;
       end if;
-      if falling_edge(ACLK) then
+      if falling_edge(clk) then
           if S_AXIS_TVALID = '1' and S_AXIS_TLAST = '1' then
               M_AXIS_TVALID <= '1';
               M_AXIS_TDATA <= std_logic_vector(output_hold);
